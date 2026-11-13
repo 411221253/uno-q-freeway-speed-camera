@@ -1,1 +1,14 @@
-
+version: 1.0.0
+name: UNO Q Speed Camera
+description: 邊緣視覺測速儀 (國道即時影像 + RGB LED 警報)
+components:
+  - id: main
+    type: docker
+    image: arduino/python-apps-base:0.1.0
+    restart: always
+    network_mode: "host"
+    privileged: true
+    volumes:
+      - /sys/class/leds:/sys/class/leds
+    env:
+      CAMERA_URL: "tcp://192.168.137.1:9999"
