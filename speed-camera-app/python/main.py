@@ -6,7 +6,7 @@ import socket
 import struct
 import pickle
 
-print("邊緣測速儀啟動中 (離去車流方向修正 + 6.8m 實測比例尺校正版)...")
+print("邊緣測速儀啟動中 (路側反光標記 6 格 = 6.0m 精準對齊版)...")
 
 # --- 板載 RGB LED 控制設定 ---
 RED_LED_PATH = "/sys/class/leds/unoq:user-red1/brightness"
@@ -46,11 +46,11 @@ if not connected:
 data = b""
 payload_size = struct.calcsize("Q")
 
-# --- 彭山隧道雙線測速幾何校正參數 (車輛由下往上開) ---
-LINE_START_Y = 215        # 第一條線 (下方橘線 - 進入測速區)
-LINE_END_Y = 155          # 第二條線 (上方藍線 - 離開測速區)
-REAL_DISTANCE_M = 6.8     # 依據影片實測白車通過時間反推之精確物理距離 (公尺)
-SPEED_LIMIT = 80          # 國道速限 (km/h)
+# --- 彭山隧道雙線測速幾何校正參數 (對齊路側反光標記 6 格間距) ---
+LINE_START_Y = 219        # 第一條線 (下方橘線 - 對齊第1顆反光圓點)
+LINE_END_Y = 132          # 第二條線 (上方藍線 - 對齊第7顆反光圓點)
+REAL_DISTANCE_M = 6.0     # 國道五號長隧道緣石反光標記 1m * 6 格 = 6 公尺
+SPEED_LIMIT = 80          # 彭山隧道法定速限 (km/h)
 
 object_detector = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=50, detectShadows=False)
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -61,7 +61,7 @@ measured_ids = set()
 object_id_counter = 0
 overspeed_hold_until = 0
 
-print(f"監測啟動：感應區間 {REAL_DISTANCE_M} 公尺 (由下往上偵測)，速限 {SPEED_LIMIT} km/h")
+print(f"監測啟動：感應區間 {REAL_DISTANCE_M} 公尺 (6格反光標記)，速限 {SPEED_LIMIT} km/h")
 
 try:
     while True:
@@ -122,15 +122,15 @@ try:
                 prev_cx, prev_by = tracked_objects[matched_id]
                 new_tracked[matched_id] = (cx, bottom_y)
                 
-                # 判斷車尾著地點由下往上跨過第一條線 (LINE_START_Y = 215)
+                # 判斷車尾著地點由下往上跨過第一條線 (LINE_START_Y = 219)
                 if prev_by > LINE_START_Y >= bottom_y and matched_id not in cross_start_time:
                     cross_start_time[matched_id] = capture_time
                     
-                # 判斷車尾著地點由下往上跨過第二條線 (LINE_END_Y = 155)
+                # 判斷車尾著地點由下往上跨過第二條線 (LINE_END_Y = 143)
                 elif prev_by > LINE_END_Y >= bottom_y and matched_id in cross_start_time and matched_id not in measured_ids:
                     dt = capture_time - cross_start_time[matched_id]
-                    # 過濾掉高公局快轉追幀造成的極端小時間差 (dt >= 0.22s，對應最高 111 km/h)
-                    if 0.24 <= dt <= 1.2:
+                    # 3.0m 區間合理通過時間窗 (0.09s 對應 120 km/h；0.8s 對應 13.5 km/h)
+                    if 0.18 <= dt <= 1.2:
                         speed_ms = REAL_DISTANCE_M / dt
                         speed_kmh = speed_ms * 3.6
                         measured_ids.add(matched_id)
